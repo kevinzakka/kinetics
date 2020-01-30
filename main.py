@@ -7,7 +7,6 @@ import time
 
 import numpy as np
 import pandas as pd
-import utils
 
 
 def dump_json(ns, ls):
@@ -16,10 +15,15 @@ def dump_json(ns, ls):
       json.dump(l, f, indent="")
 
 
+def makedir(s):
+  if not os.path.exists(s):
+    os.makedirs(s)
+
+
 def scrape_test(verbose):
   # create folder
   foldername = os.path.join("./data/", "test")
-  utils.makedir(foldername)
+  makedir(foldername)
   # read previously saved video errors
   failname = os.path.join(foldername, "failures.json")
   try:
@@ -85,7 +89,7 @@ def scrape_train_validate(splits, vids_per, verbose):
   for split in splits:
     # create folder
     foldername = os.path.join("./data/", split)
-    utils.makedir(foldername)
+    makedir(foldername)
     # read previously saved video errors
     failname = os.path.join(foldername, "failures.json")
     try:
@@ -135,7 +139,7 @@ def scrape_train_validate(splits, vids_per, verbose):
     if not video_errors:
       video_errors = {key: [] for key in actions}
     for action in actions:
-      utils.makedir(os.path.join(foldername, action))
+      makedir(os.path.join(foldername, action))
     for index, vid in vids_by_action.iterrows():
       action = vid.label.replace(" ", "_")
       tmp = os.path.join(foldername, action, 'tmp.mp4')
