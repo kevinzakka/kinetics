@@ -10,24 +10,36 @@ import pandas as pd
 import utils
 
 
+def dump_json(ns, ls):
+  for n, l in zip(ns, ls):
+    with open(n, "w") as f:
+      json.dump(l, f, indent="")
+
+
 def scrape_test(verbose):
   # create folder
   foldername = os.path.join("./data/", "test")
   utils.makedir(foldername)
   # read previously saved video errors
+  failname = os.path.join(foldername, "failures.json")
   try:
-    with open(os.path.join(foldername, "failures.json"), "r") as f:
+    with open(failname, "r") as f:
       video_errors = json.load(f)
   except:
     video_errors = []
   # read previously downloaded videos
+  succname = os.path.join(foldername, "successes.json")
   try:
-    with open(os.path.join(foldername, "successes.json"), "r") as f:
+    with open(succname, "r") as f:
       video_successes = json.load(f)
   except:
     video_successes = []
   # read csv file
-  db = pd.read_csv(os.path.join("data/kinetics700/test.csv"))
+  try:
+    db = pd.read_csv(os.path.join("data/kinetics700/test.csv"))
+  except FileNotFoundError:
+    print("[!] Could not find the kinetics700 folder. Download it by running the bash script.")
+    sys.exit()
   # remove any video that's already been downloaded
   # and exit if no more to download
   print("[*] Trimming {} already downloaded videos.".format(len(video_successes+video_errors)))
@@ -60,19 +72,13 @@ def scrape_test(verbose):
       print("{}/{} - success".format(counter, len(db)))
     except KeyboardInterrupt:
       print("[*] Control-C detected. Exiting.")
-      with open(os.path.join(foldername, "failures.json"), "w") as f:
-        json.dump(video_errors, f, indent="")
-      with open(os.path.join(foldername, "successes.json"), "w") as f:
-        json.dump(video_successes, f, indent="")
+      dump_json([failname, succname], [video_errors, video_successes])
       sys.exit()
     except Exception:
       video_errors.append(vid.youtube_id)
       print("{}/{} - failure".format(counter, len(db)))
     counter += 1
-  with open(os.path.join(foldername, "failures.json"), "w") as f:
-    json.dump(video_errors, f, indent="")
-  with open(os.path.join(foldername, "successes.json"), "w") as f:
-    json.dump(video_successes, f, indent="")
+  dump_json([failname, succname], [video_errors, video_successes])
 
 
 def scrape_train_validate(splits, vids_per, verbose):
@@ -81,19 +87,25 @@ def scrape_train_validate(splits, vids_per, verbose):
     foldername = os.path.join("./data/", split)
     utils.makedir(foldername)
     # read previously saved video errors
+    failname = os.path.join(foldername, "failures.json")
     try:
-      with open(os.path.join(foldername, "failures.json"), "r") as f:
+      with open(failname, "r") as f:
         video_errors = json.load(f)
     except:
       video_errors = {}
     # read previously downloaded videos
+    succname = os.path.join(foldername, "successes.json")
     try:
-      with open(os.path.join(foldername, "successes.json"), "r") as f:
+      with open(succname, "r") as f:
         video_successes = json.load(f)
     except:
       video_successes = {}
     # read csv file
-    db = pd.read_csv(os.path.join("data/kinetics700/{}.csv".format(split)))
+    try:
+      db = pd.read_csv(os.path.join("data/kinetics700/{}.csv".format(split)))
+    except FileNotFoundError:
+      print("[!] Could not find the kinetics700 folder. Download it by running the bash script.")
+      sys.exit()
     # remove any video that's already been downloaded
     # and exit if no more to download
     id_succ = []
@@ -148,19 +160,13 @@ def scrape_train_validate(splits, vids_per, verbose):
         print("{}/{} - success".format(counter, len(vids_by_action)))
       except KeyboardInterrupt:
         print("[*] Control-C detected. Exiting.")
-        with open(os.path.join(foldername, "failures.json"), "w") as f:
-          json.dump(video_errors, f, indent="")
-        with open(os.path.join(foldername, "successes.json"), "w") as f:
-          json.dump(video_successes, f, indent="")
+        dump_json([failname, succname], [video_errors, video_successes])
         sys.exit()
       except Exception:
         video_errors[action].append(vid.youtube_id)
         print("{}/{} - error".format(counter, len(vids_by_action)))
       counter += 1
-  with open(os.path.join(foldername, "failures.json"), "w") as f:
-    json.dump(video_errors, f, indent="")
-  with open(os.path.join(foldername, "successes.json"), "w") as f:
-    json.dump(video_successes, f, indent="")
+  dump_json([failname, succname], [video_errors, video_successes])
 
 
 def main(args):
@@ -169,11 +175,9 @@ def main(args):
     scrape_train_validate(splits, args.vids_per, args.verbose)
     scrape_test(args.verbose)
   elif args.split == "train":
-    splits = splits[:1]
-    scrape_train_validate(splits, args.vids_per, args.verbose)
-  elif args.split == "validate":
-    splits = splits[-1:]
-    scrape_train_validate(splits, args.vids_per, args.verbose)
+    scrape_train_validate(splits[:1], args.vids_per, args.verbose)
+  elif args.split in ["valid", "validate"]:
+    scrape_train_validate(splits[-1:], args.vids_per, args.verbose)
   elif args.split == "test":
     scrape_test(args.verbose)
   else:
