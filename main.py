@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -20,7 +21,7 @@ def makedir(s):
     os.makedirs(s)
 
 
-def scrape_test(verbose):
+def scrape_test(verbose, retry_fail):
   # create folder
   foldername = os.path.join("./data/", "test")
   makedir(foldername)
@@ -46,6 +47,8 @@ def scrape_test(verbose):
     sys.exit()
   # remove any video that's already been downloaded
   # and exit if no more to download
+  if retry_fail:
+    video_errors = []
   print("[*] Trimming {} already downloaded videos.".format(len(video_successes+video_errors)))
   db = db[~db['youtube_id'].isin(video_successes+video_errors)]
   if len(db) == 0:
@@ -85,7 +88,7 @@ def scrape_test(verbose):
   dump_json([failname, succname], [video_errors, video_successes])
 
 
-def scrape_train_validate(splits, vids_per, verbose):
+def scrape_train_validate(splits, vids_per, verbose, retry_fail):
   for split in splits:
     # create folder
     foldername = os.path.join("./data/", split)
@@ -118,6 +121,9 @@ def scrape_train_validate(splits, vids_per, verbose):
     id_err = []
     for key, val in video_errors.items():
       id_err.extend(val)
+    if retry_fail:
+      video_errors = {}
+      id_err = []
     print("[*] Trimming {} already downloaded videos.".format(len(id_succ+id_err)))
     db = db[~db['youtube_id'].isin(id_succ+id_err)]
     if len(db) == 0:
@@ -133,7 +139,8 @@ def scrape_train_validate(splits, vids_per, verbose):
     counter = 0
     # make a folder for each type of action
     actions = vids_by_action['label'].unique().tolist()
-    actions = [a.replace(" ", "_") for a in actions]
+    actions = [a.replace(" ", "_") for a in actions]  # replace spaces with underscores
+    actions = [re.sub(r"\(|\)|\'", "", a) for a in actions]  # remove parentheses and apostrophes
     if not video_successes:
       video_successes = {key: [] for key in actions}
     if not video_errors:
@@ -174,16 +181,18 @@ def scrape_train_validate(splits, vids_per, verbose):
 
 
 def main(args):
+  if args.retry_fail:
+    print("[*] Re-downloading previously failed videos.")
   splits = ["train", "validate"]
   if args.split == "all":
-    scrape_train_validate(splits, args.vids_per, args.verbose)
-    scrape_test(args.verbose)
+    scrape_train_validate(splits, args.vids_per, args.verbose, args.retry_fail)
+    scrape_test(args.verbose, args.retry_fail)
   elif args.split == "train":
-    scrape_train_validate(splits[:1], args.vids_per, args.verbose)
+    scrape_train_validate(splits[:1], args.vids_per, args.verbose, args.retry_fail)
   elif args.split in ["valid", "validate"]:
-    scrape_train_validate(splits[-1:], args.vids_per, args.verbose)
+    scrape_train_validate(splits[-1:], args.vids_per, args.verbose, args.retry_fail)
   elif args.split == "test":
-    scrape_test(args.verbose)
+    scrape_test(args.verbose, args.retry_fail)
   else:
     raise ValueError("[!] {} split not supported.".format(args.split))
 
@@ -196,6 +205,8 @@ if __name__ == "__main__":
                       help="Number of videos per action. Set to -1 to download all.")
   parser.add_argument("--split", type=str, default="all",
                       help="Which split to download.")
+  parser.add_argument("--retry_fail", type=str2bool, default=False,
+                      help="Whether to retry downloading failures.")
   parser.add_argument("--verbose", type=str2bool, default=False,
                       help="Whether to print messages from youtube-dl and ffmpeg.")
   args, unparsed = parser.parse_known_args()
