@@ -25,13 +25,19 @@ bash download.sh
 You can now scrape the dataset by running `main.py`.
 
 ```bash
-usage: main.py [-h] [--vids_per VIDS_PER] [--split SPLIT] [--verbose VERBOSE]
+usage: main.py [-h] [--action_classes ACTION_CLASSES] [--vids_per VIDS_PER]
+               [--split SPLIT] [--retry_fail RETRY_FAIL] [--verbose VERBOSE]
 
 optional arguments:
-  -h, --help           show this help message and exit
-  --vids_per VIDS_PER  Number of videos per action. Set to -1 to download all.
-  --split SPLIT        Which split to download.
-  --verbose VERBOSE    Whether to print messages from youtube-dl and ffmpeg.
+  -h, --help            show this help message and exit
+  --action_classes ACTION_CLASSES
+                        Delimited list of action pairs to download.
+  --vids_per VIDS_PER   Number of videos per action. Set to -1 to download
+                        all.
+  --split SPLIT         Which split to download.
+  --retry_fail RETRY_FAIL
+                        Whether to retry downloading failures.
+  --verbose VERBOSE     Whether to print messages from youtube-dl and ffmpeg.
 ```
 
 To download 20 videos per action on the **train** and **validation** splits as well as the unlabeled **test** split, run:
@@ -44,4 +50,10 @@ To download all videos in the **test** split in verbose mode, run:
 
 ```
 python main.py --split=test --verbose=True
+```
+
+To download a specific subset of action classes specified as a comma-separated list, run:
+
+```
+python main.py --action_classes="archery,yawning,shining_shoes"
 ```

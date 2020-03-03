@@ -88,7 +88,7 @@ def scrape_test(verbose, retry_fail):
   dump_json([failname, succname], [video_errors, video_successes])
 
 
-def scrape_train_validate(splits, vids_per, verbose, retry_fail):
+def scrape_train_validate(splits, vids_per, verbose, retry_fail, classes):
   for split in splits:
     # create folder
     foldername = os.path.join("./data/", split)
@@ -129,18 +129,21 @@ def scrape_train_validate(splits, vids_per, verbose, retry_fail):
     if len(db) == 0:
       print("[*] No more {} videos to download. Exiting.".format(split))
       return
+    # clean up action labels
+    db['label'] = db['label'].apply(lambda x: x.replace(" ", "_"))
+    db['label'] = db['label'].apply(lambda x: re.sub(r"\(|\)|\'", "", x))
     # stratified subsampling
     if vids_per != -1:
       vids_by_action = db.groupby('label', group_keys=False).apply(
         lambda x: x.sample(min(len(x), vids_per)))
     else:
-      vids_by_action = db
+      vids_by_action = db.copy()
+    if classes is not None:
+      vids_by_action = vids_by_action[vids_by_action['label'].isin(classes)]
     print("[*] Downloading {} videos.".format(len(vids_by_action)))
     counter = 0
     # make a folder for each type of action
     actions = vids_by_action['label'].unique().tolist()
-    actions = [a.replace(" ", "_") for a in actions]  # replace spaces with underscores
-    actions = [re.sub(r"\(|\)|\'", "", a) for a in actions]  # remove parentheses and apostrophes
     if not video_successes:
       video_successes = {key: [] for key in actions}
     if not video_errors:
@@ -148,7 +151,7 @@ def scrape_train_validate(splits, vids_per, verbose, retry_fail):
     for action in actions:
       makedir(os.path.join(foldername, action))
     for index, vid in vids_by_action.iterrows():
-      action = vid.label.replace(" ", "_")
+      action = vid.label
       tmp = os.path.join(foldername, action, 'tmp.mp4')
       videoname = os.path.join(foldername, action, vid.youtube_id + '.mp4')
       # downloading a video can sometimes fail because
@@ -181,16 +184,20 @@ def scrape_train_validate(splits, vids_per, verbose, retry_fail):
 
 
 def main(args):
+  if args.action_classes is not None:
+    classes = [item for item in args.action_classes.split(',')]
+  else:
+    classes = None
   if args.retry_fail:
     print("[*] Re-downloading previously failed videos.")
   splits = ["train", "validate"]
   if args.split == "all":
-    scrape_train_validate(splits, args.vids_per, args.verbose, args.retry_fail)
+    scrape_train_validate(splits, args.vids_per, args.verbose, args.retry_fail, classes)
     scrape_test(args.verbose, args.retry_fail)
   elif args.split == "train":
-    scrape_train_validate(splits[:1], args.vids_per, args.verbose, args.retry_fail)
+    scrape_train_validate(splits[:1], args.vids_per, args.verbose, args.retry_fail, classes)
   elif args.split in ["valid", "validate"]:
-    scrape_train_validate(splits[-1:], args.vids_per, args.verbose, args.retry_fail)
+    scrape_train_validate(splits[-1:], args.vids_per, args.verbose, args.retry_fail, classes)
   elif args.split == "test":
     scrape_test(args.verbose, args.retry_fail)
   else:
@@ -201,6 +208,8 @@ if __name__ == "__main__":
   def str2bool(s):
     return s.lower() in ['true', '1']
   parser = argparse.ArgumentParser()
+  parser.add_argument("--action_classes", type=str, default=None,
+                      help="Delimited list of action pairs to download.")
   parser.add_argument("--vids_per", type=int, default=50,
                       help="Number of videos per action. Set to -1 to download all.")
   parser.add_argument("--split", type=str, default="all",
